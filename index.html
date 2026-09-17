@@ -29,10 +29,45 @@
       font-size: 13px;
       pointer-events: none;
     }
+
+    #loading-overlay {
+      position: fixed;
+      inset: 0;
+      background: #111;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      z-index: 10;
+      transition: opacity 0.3s ease;
+    }
+    #loading-overlay.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid rgba(255, 255, 255, 0.15);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.9s linear infinite;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    #loading-text {
+      color: #ccc;
+      font-size: 14px;
+      letter-spacing: 0.02em;
+      text-align: center;
+    }
   </style>
 </head>
 <body>
   <model-viewer
+    id="viewer"
     src="model.glb"
     alt="3D model: Torch"
     camera-controls
@@ -44,6 +79,48 @@
     environment-image="neutral"
     interaction-prompt="none"
   ></model-viewer>
+
+  <div id="loading-overlay">
+    <div class="spinner"></div>
+    <div id="loading-text">Loading model… please wait</div>
+  </div>
+
   <div class="caption">Drag to rotate &middot; scroll/pinch to zoom</div>
+
+  <script>
+    const viewer = document.getElementById('viewer');
+    const overlay = document.getElementById('loading-overlay');
+    const loadingText = document.getElementById('loading-text');
+
+    let fallbackTimer = null;
+
+    function hideOverlay() {
+      overlay.classList.add('hidden');
+      if (fallbackTimer) {
+        clearTimeout(fallbackTimer);
+        fallbackTimer = null;
+      }
+    }
+
+    viewer.addEventListener('progress', (event) => {
+      const pct = Math.round(event.detail.totalProgress * 100);
+
+      // Download finished, but decoding/GPU upload can take a bit longer
+      // and doesn't always fire a clean "load" event afterward. If we hit
+      // 100% and nothing happens for a few seconds, hide the overlay
+      // anyway rather than leaving it stuck forever.
+      if (pct >= 100 && !fallbackTimer) {
+        loadingText.textContent = 'Almost there…';
+        fallbackTimer = setTimeout(hideOverlay, 4000);
+      }
+    });
+
+    viewer.addEventListener('load', hideOverlay);
+
+    viewer.addEventListener('error', () => {
+      if (fallbackTimer) clearTimeout(fallbackTimer);
+      loadingText.textContent = 'Could not load the model. Try refreshing the page.';
+    });
+  </script>
 </body>
 </html>
